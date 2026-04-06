@@ -1,0 +1,15 @@
+{
+  "@@locale": "en",
+  "appTitle": "SpeedLock",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "profiles": "Profiles",
+  "@profiles": {
+    "description": "Header for profiles tab"
+  },
+  "apps": "Apps",
+  "@apps": {
+    "description": "Header for apps tab"
+  }
+}
