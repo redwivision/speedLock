@@ -1,38 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter/services.dart';
 
 import 'l10n/app_localizations.dart';
 import 'data/hive_manager.dart';
-import 'data/profile_repository.dart';
+import 'data/app_lock_store.dart';
 import 'data/native_bridge.dart';
+import 'data/secure_storage_helper.dart';
 import 'background/work_manager_helper.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/create_profile_screen.dart';
 import 'screens/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await HiveManager.init();
-  await ProfileRepository.init(HiveManager.profilesBox, HiveManager.appsBox);
   await WorkManagerHelper.init();
-
-  // Start the native lock service
   await NativeBridge.startService();
+  await AppLockStore.syncOnStartup();
 
-  // Sync locked apps for the active profile on startup
-  final activeId = await ProfileRepository.getActiveProfileId();
-  if (activeId != null) {
-    final locked = ProfileRepository.getLockedPackageNames(activeId);
-    await NativeBridge.syncLockedApps(locked);
-  }
+  final setupDone = await SecureStorageHelper.isSetupComplete();
 
-  runApp(const SpeedLockApp());
+  runApp(SpeedLockApp(setupDone: setupDone));
 }
 
 class SpeedLockApp extends StatelessWidget {
-  const SpeedLockApp({super.key});
+  final bool setupDone;
+  const SpeedLockApp({super.key, this.setupDone = false});
 
   @override
   Widget build(BuildContext context) {
@@ -53,60 +46,36 @@ class SpeedLockApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('am'),
-      ],
-      home: const AppRouter(),
+      supportedLocales: const [Locale('en'), Locale('am')],
+      home: _AppRouter(setupDone: setupDone),
     );
   }
 }
 
-class AppRouter extends StatefulWidget {
-  const AppRouter({super.key});
+class _AppRouter extends StatefulWidget {
+  final bool setupDone;
+  const _AppRouter({required this.setupDone});
 
   @override
-  State<AppRouter> createState() => _AppRouterState();
+  State<_AppRouter> createState() => _AppRouterState();
 }
 
-class _AppRouterState extends State<AppRouter> {
-  String _screen = 'loading';
+class _AppRouterState extends State<_AppRouter> {
+  late bool _showDashboard;
 
   @override
   void initState() {
     super.initState();
-    _determineScreen();
-  }
-
-  Future<void> _determineScreen() async {
-    final profiles = ProfileRepository.getAllProfiles();
-    if (profiles.isEmpty) {
-      setState(() => _screen = 'onboarding');
-    } else {
-      setState(() => _screen = 'dashboard');
-    }
-  }
-
-  void _goTo(String screen) {
-    setState(() => _screen = screen);
+    _showDashboard = widget.setupDone;
   }
 
   @override
   Widget build(BuildContext context) {
-    switch (_screen) {
-      case 'loading':
-        return const Scaffold(
-          backgroundColor: Color(0xFF0D0D0D),
-          body: Center(child: CircularProgressIndicator(color: Color(0xFF00FFCC))),
-        );
-      case 'onboarding':
-        return OnboardingScreen(onComplete: () => _goTo('create_profile'));
-      case 'create_profile':
-        return CreateProfileScreen(onProfileCreated: () => _goTo('dashboard'));
-      case 'dashboard':
-        return const DashboardScreen();
-      default:
-        return const DashboardScreen();
+    if (_showDashboard) {
+      return const DashboardScreen();
     }
+    return OnboardingScreen(
+      onComplete: () => setState(() => _showDashboard = true),
+    );
   }
 }

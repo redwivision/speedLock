@@ -5,7 +5,8 @@ import 'package:hive/hive.dart';
 class SecureStorageHelper {
   static const _storage = FlutterSecureStorage();
   static const _keyHiveEncryption = 'hive_encryption_key';
-  static const _keyActiveProfile = 'active_profile_id';
+  static const _keyUserPin = 'user_pin';
+  static const _keySetupComplete = 'setup_complete';
 
   static Future<List<int>> getHiveEncryptionKey() async {
     String? keyString = await _storage.read(key: _keyHiveEncryption);
@@ -17,11 +18,20 @@ class SecureStorageHelper {
     return base64Url.decode(keyString);
   }
 
-  static Future<String?> getActiveProfileId() async {
-    return await _storage.read(key: _keyActiveProfile);
+  static Future<String?> getUserPin() async {
+    return await _storage.read(key: _keyUserPin);
   }
 
-  static Future<void> setActiveProfileId(String id) async {
-    await _storage.write(key: _keyActiveProfile, value: id);
+  static Future<void> setUserPin(String pin) async {
+    await _storage.write(key: _keyUserPin, value: pin);
+  }
+
+  static Future<bool> isSetupComplete() async {
+    final val = await _storage.read(key: _keySetupComplete);
+    return val == 'true';
+  }
+
+  static Future<void> markSetupComplete() async {
+    await _storage.write(key: _keySetupComplete, value: 'true');
   }
 }

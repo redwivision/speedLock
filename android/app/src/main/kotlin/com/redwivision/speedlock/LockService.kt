@@ -21,53 +21,66 @@ class LockService : Service() {
     private var isScreenOn = true
     private var eventReceiver: EventReceiver? = null
 
+    // Track which apps have been "unlocked" this session.
+    // When user successfully enters PIN, the locked app gets added here.
+    // When user navigates away from that app, it gets removed so it re-locks next time.
+    private val unlockedApps = mutableSetOf<String>()
+    private var previousTopApp: String? = null
+
     override fun onCreate() {
         super.onCreate()
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         prefs = getSharedPreferences("SpeedLockPrefs", Context.MODE_PRIVATE)
-        
+
         startForeground(1, createNotification())
-        
+
         eventReceiver = EventReceiver { screenOn ->
             isScreenOn = screenOn
+            if (!screenOn) {
+                // Screen off = re-lock everything
+                unlockedApps.clear()
+            }
         }
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         registerReceiver(eventReceiver, filter)
-        
+
         startPolling()
     }
 
     private fun startPolling() {
         serviceScope.launch {
-            var lastLockedApp = ""
             while (isActive) {
                 if (isScreenOn) {
                     val topApp = getTopApp()
                     if (topApp != null && topApp != packageName) {
                         val lockedApps = prefs.getStringSet("locked_apps", setOf()) ?: setOf()
+
                         if (lockedApps.contains(topApp)) {
-                            if (lastLockedApp != topApp) {
-                                lastLockedApp = topApp
+                            if (!unlockedApps.contains(topApp)) {
+                                // This app is locked AND not temporarily unlocked
                                 launchLockScreen(topApp)
                             }
-                        } else {
-                            lastLockedApp = ""
                         }
-                    } else if (topApp == null) {
-                        lastLockedApp = ""
+
+                        // If user navigated away from a previously unlocked app, re-lock it
+                        if (previousTopApp != null && previousTopApp != topApp && unlockedApps.contains(previousTopApp)) {
+                            unlockedApps.remove(previousTopApp)
+                        }
+
+                        previousTopApp = topApp
                     }
                 }
-                delay(500) // Throttled polling reduces battery drain vs tight loops
+                delay(500)
             }
         }
     }
 
     private fun getTopApp(): String? {
         val endTime = System.currentTimeMillis()
-        val beginTime = endTime - 5000 // Look at last 5 seconds
+        val beginTime = endTime - 5000
         val usageEvents = usageStatsManager.queryEvents(beginTime, endTime)
         val event = UsageEvents.Event()
         var topPackage: String? = null
@@ -80,12 +93,18 @@ class LockService : Service() {
         return topPackage
     }
 
-    private fun launchLockScreen(packageName: String) {
+    private fun launchLockScreen(lockedPackageName: String) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra("locked_app", packageName)
+            putExtra("locked_app", lockedPackageName)
+            putExtra("show_lock", true)
         }
         startActivity(intent)
+    }
+
+    /** Called from MainActivity when user successfully unlocks */
+    fun onAppUnlocked(packageName: String) {
+        unlockedApps.add(packageName)
     }
 
     private fun createNotification(): Notification {
@@ -93,16 +112,17 @@ class LockService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "SpeedLock Foreground Service",
+                "SpeedLock Protection",
                 NotificationManager.IMPORTANCE_LOW
-            )
+            ).apply { setShowBadge(false) }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("SpeedLock Active")
-            .setContentText("Protecting your device")
+            .setContentText("Protecting your apps")
             .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
             .build()
     }
 
