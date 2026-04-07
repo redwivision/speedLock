@@ -36,4 +36,14 @@ class NativeBridge {
       await _channel.invokeMethod('setLockedApps', {'apps': packageNames});
     } catch (_) {}
   }
+
+  static Future<void> unlockApp(String packageName) async {
+    try {
+      await _channel.invokeMethod('unlockApp', {'package': packageName});
+    } catch (_) {}
+  }
+
+  static void setMethodCallHandler(Future<dynamic> Function(MethodCall call)? handler) {
+    _channel.setMethodCallHandler(handler);
+  }
 }

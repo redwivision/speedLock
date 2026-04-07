@@ -19,7 +19,11 @@ class SecureStorageHelper {
   }
 
   static Future<String?> getUserPin() async {
-    return await _storage.read(key: _keyUserPin);
+    try {
+      return await _storage.read(key: _keyUserPin);
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> setUserPin(String pin) async {
@@ -27,8 +31,12 @@ class SecureStorageHelper {
   }
 
   static Future<bool> isSetupComplete() async {
-    final val = await _storage.read(key: _keySetupComplete);
-    return val == 'true';
+    try {
+      final val = await _storage.read(key: _keySetupComplete);
+      return val == 'true';
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<void> markSetupComplete() async {

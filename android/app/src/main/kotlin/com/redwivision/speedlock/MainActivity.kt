@@ -10,13 +10,18 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+import android.os.Bundle
+
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.redwivision.speedlock/service"
+    private var methodChannel: MethodChannel? = null
+    private var pendingLockedApp: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "startService" -> {
                     val intent = Intent(this, LockService::class.java)
@@ -63,8 +68,51 @@ class MainActivity: FlutterActivity() {
                     }.sortedBy { it["appName"]?.lowercase() }
                     result.success(apps)
                 }
+                "unlockApp" -> {
+                    val pkg = call.argument<String>("package") ?: ""
+                    val intent = Intent(this, LockService::class.java).apply {
+                        action = "ACTION_APP_UNLOCKED"
+                        putExtra("package", pkg)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                    // Moves SpeedLock to the background so user sees the unlocked app
+                    moveTaskToBack(true)
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
+        }
+        
+        pendingLockedApp?.let {
+            methodChannel?.invokeMethod("showLockScreen", it)
+            pendingLockedApp = null
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
+        if (intent.getBooleanExtra("show_lock", false)) {
+            val lockedApp = intent.getStringExtra("locked_app") ?: ""
+            if (methodChannel != null) {
+                methodChannel?.invokeMethod("showLockScreen", lockedApp)
+            } else {
+                pendingLockedApp = lockedApp
+            }
+            // Clear extras so rotation doesn't trigger it again
+            intent.removeExtra("show_lock")
         }
     }
 

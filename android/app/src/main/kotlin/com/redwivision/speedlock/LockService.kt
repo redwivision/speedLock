@@ -102,31 +102,13 @@ class LockService : Service() {
         startActivity(intent)
     }
 
-    /** Called from MainActivity when user successfully unlocks */
-    fun onAppUnlocked(packageName: String) {
-        unlockedApps.add(packageName)
-    }
-
-    private fun createNotification(): Notification {
-        val channelId = "speedlock_service"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "SpeedLock Protection",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { setShowBadge(false) }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-        return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("SpeedLock Active")
-            .setContentText("Protecting your apps")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setOngoing(true)
-            .build()
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ACTION_APP_UNLOCKED") {
+            val pkg = intent.getStringExtra("package")
+            if (pkg != null) {
+                unlockedApps.add(pkg)
+            }
+        }
         return START_STICKY
     }
 

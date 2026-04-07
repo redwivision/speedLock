@@ -9,6 +9,7 @@ import 'data/secure_storage_helper.dart';
 import 'background/work_manager_helper.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/lock_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,17 @@ class _AppRouterState extends State<_AppRouter> {
   void initState() {
     super.initState();
     _showDashboard = widget.setupDone;
+
+    NativeBridge.setMethodCallHandler((call) async {
+      if (call.method == 'showLockScreen') {
+        final String pkg = call.arguments as String;
+        if (mounted) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => LockScreen(lockedApp: pkg),
+          ));
+        }
+      }
+    });
   }
 
   @override

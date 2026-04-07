@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../data/secure_storage_helper.dart';
+import '../data/native_bridge.dart';
 
 class LockScreen extends StatefulWidget {
-  const LockScreen({super.key});
+  final String lockedApp;
+  const LockScreen({super.key, required this.lockedApp});
 
   @override
   State<LockScreen> createState() => _LockScreenState();
@@ -33,13 +35,18 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
     final savedPin = await SecureStorageHelper.getUserPin();
 
     if (savedPin == null) {
-      // No pin set, just unlock
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        await NativeBridge.unlockApp(widget.lockedApp);
+        Navigator.of(context).pop(true);
+      }
       return;
     }
 
     if (_pinController.text == savedPin) {
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        await NativeBridge.unlockApp(widget.lockedApp);
+        Navigator.of(context).pop(true);
+      }
     } else {
       _shakeCtrl.forward(from: 0);
       HapticFeedback.heavyImpact();

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../data/app_lock_store.dart';
-import '../data/native_bridge.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
