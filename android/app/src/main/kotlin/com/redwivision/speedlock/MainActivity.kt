@@ -50,6 +50,19 @@ class MainActivity: FlutterActivity() {
                     val apps = prefs.getStringSet("locked_apps", setOf())?.toList() ?: listOf()
                     result.success(apps)
                 }
+                "getInstalledApps" -> {
+                    val pm = packageManager
+                    val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                        addCategory(Intent.CATEGORY_LAUNCHER)
+                    }
+                    val apps = pm.queryIntentActivities(intent, 0).map { ri ->
+                        mapOf(
+                            "packageName" to ri.activityInfo.packageName,
+                            "appName" to ri.loadLabel(pm).toString()
+                        )
+                    }.sortedBy { it["appName"]?.lowercase() }
+                    result.success(apps)
+                }
                 else -> result.notImplemented()
             }
         }
